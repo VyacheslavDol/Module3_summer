@@ -14,7 +14,8 @@
 #include <sys/wait.h>
 #include "input_char.h"
 
-#define IP "127.0.0.1"
+#define IP1 "127.0.0.1"
+#define IP2 "127.0.0.5"
 #define EXIT "exit"
 #define WORD 
 int exit_flag;
@@ -42,11 +43,21 @@ int main(int argc, char* argv[])
     char sendline[1000], recvline[1000]; /* Массивы для отсылаемой и принятой строки */
     char exit_word[] = "Собеседник вышел из чата\0";
     struct sockaddr_in dest_addr, my_addr; /* Структуры для адресов назначения и своего */
+    char my_ip[16], dest_ip[16];
     pid_t pid; /* PID процесса для функции fork() */
 
     int my_port = (a == 1) ? 50000 : 50002;    /* порт личный */
     int dest_port = (a == 1) ? 50002 : 50000;  /* порт собеседника */
 
+    if(a == 1)          /* IP */
+    {
+        strcpy(my_ip, IP1);
+        strcpy(dest_ip, IP2);
+    }else
+    {
+        strcpy(my_ip, IP2);
+        strcpy(dest_ip, IP1);
+    }
     /* Реакция на сигнал*/
     signal(SIGUSR1, exit_handler);
 
@@ -61,7 +72,7 @@ int main(int argc, char* argv[])
     bzero(&my_addr, sizeof(my_addr));   //заполнение 0
     my_addr.sin_family = AF_INET;
     my_addr.sin_port = htons(my_port);                                    //номер порта статическое задание
-    if(inet_pton(AF_INET, IP, &my_addr.sin_addr) == 0)
+    if(inet_pton(AF_INET, my_ip, &my_addr.sin_addr) == 0)
     {
         perror("inet_pton");
         exit(EXIT_FAILURE);
@@ -71,7 +82,7 @@ int main(int argc, char* argv[])
     bzero(&dest_addr, sizeof(dest_addr));                   //заполнение 0
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(dest_port);                    //номер порта статическое задание
-    if(inet_pton(AF_INET, IP, &dest_addr.sin_addr) == 0)      //IP адрес
+    if(inet_pton(AF_INET, dest_ip, &dest_addr.sin_addr) == 0)      //IP адрес
     {
         perror("inet_pton");
         exit(EXIT_FAILURE);
@@ -99,11 +110,11 @@ int main(int argc, char* argv[])
                 if(strcmp(EXIT, sendline) == 0)
                 {   
                     strcpy(sendline, exit_word);
-                    sendto(socketfd, sendline, strlen(sendline)+1, 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                    sendto(socketfd, sendline, strlen(sendline), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr));
                     kill(getppid(), SIGUSR1);
                     break;
                 }
-                if(sendto(socketfd, sendline, strlen(sendline)+1, 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0)
+                if(sendto(socketfd, sendline, strlen(sendline), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0)
                 {
                     perror(NULL);
                     close(socketfd);
@@ -128,17 +139,19 @@ int main(int argc, char* argv[])
                 /* Получение сообщений */
                 if(recvfrom(socketfd, recvline, sizeof(recvline), 0, (struct sockaddr *) NULL, NULL) < 0)
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                  // Таймаут, данных нет. Можно просто продолжить ожидание.
+                  // Таймаут, данных нет. Можно просто продолжить ожидание
            /* printf("Данных нет\n"); */
            continue;
-       } else if(errno == EINTR)
+        } else if(errno == EINTR)
         {
             break;
         } else {
            perror("recvfrom");
-           break; // Или что-то другое для обработки настоящей ошибки
-       }
-                printf("Other: %s\n", recvline);
+           break;
+       }    
+            recvline[strlen(recvline)] = '\0';
+            printf("Other: %s\n", recvline);
+            memset(recvline, 0 , sizeof(recvline));
             }
             close(socketfd);
             kill(pid, SIGUSR1);
